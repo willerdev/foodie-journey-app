@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Search, ChevronRight, LogOut, Loader2 } from "lucide-react";
 import { useSessionContext } from '@supabase/auth-helpers-react';
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 
 const categories = [
   "All",
@@ -19,31 +20,50 @@ const Index = () => {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
   const { session } = useSessionContext();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        let query = supabase.from('products').select('*');
+        setLoading(true);
+        console.log("Fetching products with category:", selectedCategory);
+        
+        let query = supabase
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false });
         
         if (selectedCategory !== "All") {
           query = query.eq('category', selectedCategory);
         }
 
+        if (searchQuery) {
+          query = query.ilike('name', `%${searchQuery}%`);
+        }
+
         const { data, error } = await query;
+        
         if (error) throw error;
+        console.log("Fetched products:", data);
         
         setProducts(data || []);
       } catch (error) {
         console.error('Error fetching products:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load products",
+          variant: "destructive",
+        });
       } finally {
         setLoading(false);
       }
     };
 
     fetchProducts();
-  }, [selectedCategory]);
+  }, [selectedCategory, searchQuery]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -62,9 +82,15 @@ const Index = () => {
           <div className="flex gap-4 items-center">
             {session ? (
               <>
-                <span className="text-sage-700">
-                  Welcome, {session.user.email}
-                </span>
+                <Link to="/profile" className="text-sage-700 hover:text-sage-900">
+                  Profile
+                </Link>
+                <Link to="/orders" className="text-sage-700 hover:text-sage-900">
+                  Orders
+                </Link>
+                <Link to="/cart" className="text-sage-700 hover:text-sage-900">
+                  Cart
+                </Link>
                 <Button 
                   variant="ghost" 
                   className="text-sage-700 hover:text-sage-900"
@@ -105,12 +131,14 @@ const Index = () => {
               type="text"
               placeholder="Search for dishes or cuisines"
               className="pl-12 h-12 text-lg"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
           </div>
         </section>
 
-        <section className="mb-12 fade-in" style={{ animationDelay: "0.2s" }}>
+        <section className="mb-12 fade-in">
           <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
             {categories.map((category) => (
               <Button
@@ -129,7 +157,7 @@ const Index = () => {
           </div>
         </section>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 fade-in" style={{ animationDelay: "0.4s" }}>
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 fade-in">
           {loading ? (
             <div className="col-span-full flex justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin" />
@@ -142,10 +170,10 @@ const Index = () => {
             products.map((product) => (
               <Card
                 key={product.id}
-                className="overflow-hidden hover-scale glass-card"
+                className="overflow-hidden hover:shadow-lg transition-shadow duration-300"
               >
                 <img
-                  src={product.image_url}
+                  src={product.image_url || "/placeholder.svg"}
                   alt={product.name}
                   className="w-full h-48 object-cover"
                   loading="lazy"

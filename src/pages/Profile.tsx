@@ -1,14 +1,17 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useSessionContext } from "@supabase/auth-helpers-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { useSessionContext } from '@supabase/auth-helpers-react';
-import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const Profile = () => {
-  const { toast } = useToast();
   const { session } = useSessionContext();
+  const { toast } = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [profile, setProfile] = useState({
@@ -16,20 +19,23 @@ const Profile = () => {
     full_name: "",
     phone: "",
     address: "",
+    avatar_url: "",
   });
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      if (!session?.user?.id) return;
-      
+    const getProfile = async () => {
       try {
+        setLoading(true);
+        console.log("Fetching profile for user:", session?.user.id);
+        
         const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
+          .from("profiles")
+          .select("*")
+          .eq("id", session?.user.id)
           .single();
 
         if (error) throw error;
+        console.log("Profile data:", data);
         
         if (data) {
           setProfile({
@@ -37,10 +43,11 @@ const Profile = () => {
             full_name: data.full_name || "",
             phone: data.phone || "",
             address: data.address || "",
+            avatar_url: data.avatar_url || "",
           });
         }
       } catch (error) {
-        console.error('Error fetching profile:', error);
+        console.error("Error fetching profile:", error);
         toast({
           title: "Error",
           description: "Failed to load profile",
@@ -51,33 +58,36 @@ const Profile = () => {
       }
     };
 
-    fetchProfile();
+    if (session?.user.id) {
+      getProfile();
+    }
   }, [session]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!session?.user?.id) return;
-
-    setUpdating(true);
     try {
+      setUpdating(true);
+      console.log("Updating profile:", profile);
+
       const { error } = await supabase
-        .from('profiles')
+        .from("profiles")
         .update({
           username: profile.username,
           full_name: profile.full_name,
           phone: profile.phone,
           address: profile.address,
+          avatar_url: profile.avatar_url,
         })
-        .eq('id', session.user.id);
+        .eq("id", session?.user.id);
 
       if (error) throw error;
 
       toast({
-        title: "Profile Updated",
-        description: "Your profile has been updated successfully.",
+        title: "Success",
+        description: "Profile updated successfully",
       });
     } catch (error) {
-      console.error('Error updating profile:', error);
+      console.error("Error updating profile:", error);
       toast({
         title: "Error",
         description: "Failed to update profile",
@@ -88,95 +98,96 @@ const Profile = () => {
     }
   };
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setProfile((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex justify-center items-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-sage-50 to-white p-4">
+    <div className="container mx-auto px-4 py-8">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Profile</h1>
-        
-        <div className="bg-white p-6 rounded-lg shadow-sm">
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center gap-4">
-              <div className="w-20 h-20 bg-sage-200 rounded-full flex items-center justify-center">
-                <span className="text-2xl font-semibold text-sage-600">
-                  {profile.full_name ? profile.full_name[0].toUpperCase() : "?"}
-                </span>
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold">{profile.full_name || "Set your name"}</h2>
-                <p className="text-gray-600">{session?.user?.email}</p>
-              </div>
-            </div>
+        <h1 className="text-3xl font-bold mb-8">Profile Settings</h1>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              value={session?.user.email || ""}
+              disabled
+              className="bg-gray-50"
+            />
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Username</label>
-              <Input
-                value={profile.username}
-                onChange={(e) =>
-                  setProfile({ ...profile, username: e.target.value })
-                }
-                placeholder="Enter your username"
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="username">Username</Label>
+            <Input
+              id="username"
+              name="username"
+              value={profile.username}
+              onChange={handleChange}
+              placeholder="Enter your username"
+            />
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Full Name</label>
-              <Input
-                value={profile.full_name}
-                onChange={(e) =>
-                  setProfile({ ...profile, full_name: e.target.value })
-                }
-                placeholder="Enter your full name"
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="full_name">Full Name</Label>
+            <Input
+              id="full_name"
+              name="full_name"
+              value={profile.full_name}
+              onChange={handleChange}
+              placeholder="Enter your full name"
+            />
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Phone</label>
-              <Input
-                value={profile.phone}
-                onChange={(e) =>
-                  setProfile({ ...profile, phone: e.target.value })
-                }
-                placeholder="Enter your phone number"
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone</Label>
+            <Input
+              id="phone"
+              name="phone"
+              value={profile.phone}
+              onChange={handleChange}
+              placeholder="Enter your phone number"
+            />
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Address</label>
-              <Input
-                value={profile.address}
-                onChange={(e) =>
-                  setProfile({ ...profile, address: e.target.value })
-                }
-                placeholder="Enter your address"
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="address">Address</Label>
+            <Input
+              id="address"
+              name="address"
+              value={profile.address}
+              onChange={handleChange}
+              placeholder="Enter your address"
+            />
+          </div>
 
-            <Button 
-              type="submit" 
-              className="w-full bg-sage-600 hover:bg-sage-700"
-              disabled={updating}
-            >
-              {updating ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Updating...
-                </>
-              ) : (
-                'Save Changes'
-              )}
-            </Button>
-          </form>
-        </div>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={updating}
+          >
+            {updating ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Updating...
+              </>
+            ) : (
+              "Update Profile"
+            )}
+          </Button>
+        </form>
       </div>
     </div>
   );
