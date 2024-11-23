@@ -1,45 +1,79 @@
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/contexts/CartContext";
-import { useState } from "react";
-import { toast } from "@/components/ui/use-toast";
-
-// This is a mock product data - would be replaced with Supabase data
-const mockProduct = {
-  id: 1,
-  name: "Delicious Burger",
-  description: "A juicy burger with fresh vegetables and special sauce",
-  price: 12.99,
-  image: "/placeholder.svg",
-  ingredients: ["Beef patty", "Lettuce", "Tomato", "Special sauce", "Sesame bun"],
-  nutritionalInfo: {
-    calories: 650,
-    protein: "35g",
-    carbs: "48g",
-    fat: "22g"
-  }
-};
+import { useState, useEffect } from "react";
+import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
 
 const ProductDetail = () => {
   const { id } = useParams();
   const { addToCart } = useCart();
   const [quantity, setQuantity] = useState(1);
+  const [product, setProduct] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+  const navigate = useNavigate();
 
-  // In real implementation, this would fetch from Supabase
-  const product = mockProduct;
+  useEffect(() => {
+    const fetchProduct = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (error) throw error;
+        setProduct(data);
+      } catch (error) {
+        console.error('Error fetching product:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load product details",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProduct();
+  }, [id]);
 
   const handleAddToCart = () => {
+    if (!product) return;
+    
     addToCart({
       id: product.id,
       name: product.name,
       price: product.price,
-      image: product.image
+      image: product.image_url || '/placeholder.svg'
     });
-    toast({
-      title: "Added to cart",
-      description: `${quantity}x ${product.name} added to your cart`,
-    });
+
+    navigate('/cart');
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold">Product not found</h2>
+          <Button onClick={() => navigate('/')} className="mt-4">
+            Back to Home
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sage-50 to-white p-4">
@@ -47,7 +81,7 @@ const ProductDetail = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="rounded-lg overflow-hidden">
             <img
-              src={product.image}
+              src={product.image_url || '/placeholder.svg'}
               alt={product.name}
               className="w-full h-[400px] object-cover"
             />
@@ -56,28 +90,9 @@ const ProductDetail = () => {
           <div className="space-y-6">
             <h1 className="text-3xl font-bold">{product.name}</h1>
             <p className="text-xl font-semibold text-sage-600">
-              ${product.price.toFixed(2)}
+              ${Number(product.price).toFixed(2)}
             </p>
             <p className="text-gray-600">{product.description}</p>
-            
-            <div>
-              <h3 className="font-semibold mb-2">Ingredients:</h3>
-              <ul className="list-disc list-inside text-gray-600">
-                {product.ingredients.map((ingredient, index) => (
-                  <li key={index}>{ingredient}</li>
-                ))}
-              </ul>
-            </div>
-            
-            <div>
-              <h3 className="font-semibold mb-2">Nutritional Information:</h3>
-              <div className="grid grid-cols-2 gap-4 text-gray-600">
-                <div>Calories: {product.nutritionalInfo.calories}</div>
-                <div>Protein: {product.nutritionalInfo.protein}</div>
-                <div>Carbs: {product.nutritionalInfo.carbs}</div>
-                <div>Fat: {product.nutritionalInfo.fat}</div>
-              </div>
-            </div>
             
             <div className="flex items-center gap-4">
               <div className="flex items-center border rounded-md">
@@ -102,6 +117,14 @@ const ProductDetail = () => {
                 Add to Cart
               </Button>
             </div>
+
+            {product.category && (
+              <div className="pt-4">
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-sage-100 text-sage-800">
+                  {product.category}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
