@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Search, ChevronRight } from "lucide-react";
+import { Search, ChevronRight, LogOut } from "lucide-react";
+import { useSessionContext } from '@supabase/auth-helpers-react';
+import { supabase } from "@/integrations/supabase/client";
 
 const restaurants = [
   {
@@ -44,23 +46,52 @@ const categories = [
 
 const Index = () => {
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const { session } = useSessionContext();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate('/login');
+  };
+
+  const handleOrderNow = (restaurantId: number) => {
+    navigate(`/product/${restaurantId}`);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sage-50 to-white">
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-sage-800">FoodieHub</h1>
-          <div className="flex gap-4">
-            <Link to="/login">
-              <Button variant="ghost" className="text-sage-700 hover:text-sage-900">
-                Login
-              </Button>
-            </Link>
-            <Link to="/signup">
-              <Button className="bg-sage-600 hover:bg-sage-700 text-white">
-                Sign Up
-              </Button>
-            </Link>
+          <div className="flex gap-4 items-center">
+            {session ? (
+              <>
+                <span className="text-sage-700">
+                  Welcome, {session.user.email}
+                </span>
+                <Button 
+                  variant="ghost" 
+                  className="text-sage-700 hover:text-sage-900"
+                  onClick={handleSignOut}
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link to="/login">
+                  <Button variant="ghost" className="text-sage-700 hover:text-sage-900">
+                    Login
+                  </Button>
+                </Link>
+                <Link to="/signup">
+                  <Button className="bg-sage-600 hover:bg-sage-700 text-white">
+                    Sign Up
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -133,6 +164,7 @@ const Index = () => {
                   <Button
                     variant="ghost"
                     className="text-sage-600 hover:text-sage-700"
+                    onClick={() => handleOrderNow(restaurant.id)}
                   >
                     Order now <ChevronRight className="ml-2 h-4 w-4" />
                   </Button>
