@@ -1,61 +1,57 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Search, ChevronRight, LogOut } from "lucide-react";
+import { Search, ChevronRight, LogOut, Loader2 } from "lucide-react";
 import { useSessionContext } from '@supabase/auth-helpers-react';
 import { supabase } from "@/integrations/supabase/client";
 
-const restaurants = [
-  {
-    id: 1,
-    name: "The Fresh Kitchen",
-    image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500",
-    cuisine: "Healthy",
-    rating: 4.8,
-    deliveryTime: "20-30",
-  },
-  {
-    id: 2,
-    name: "Burger House",
-    image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
-    cuisine: "American",
-    rating: 4.5,
-    deliveryTime: "25-35",
-  },
-  {
-    id: 3,
-    name: "Sushi Master",
-    image: "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=500",
-    cuisine: "Japanese",
-    rating: 4.9,
-    deliveryTime: "30-40",
-  },
-];
-
 const categories = [
   "All",
-  "Healthy",
-  "Fast Food",
-  "Japanese",
   "Italian",
-  "Mexican",
-  "Desserts",
+  "American",
+  "Japanese",
+  "Healthy",
 ];
 
 const Index = () => {
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const { session } = useSessionContext();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        let query = supabase.from('products').select('*');
+        
+        if (selectedCategory !== "All") {
+          query = query.eq('category', selectedCategory);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        
+        setProducts(data || []);
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, [selectedCategory]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     navigate('/login');
   };
 
-  const handleOrderNow = (restaurantId: number) => {
-    navigate(`/product/${restaurantId}`);
+  const handleOrderNow = (productId: string) => {
+    navigate(`/product/${productId}`);
   };
 
   return (
@@ -107,7 +103,7 @@ const Index = () => {
           <div className="max-w-2xl mx-auto relative">
             <Input
               type="text"
-              placeholder="Search for restaurants or cuisines"
+              placeholder="Search for dishes or cuisines"
               className="pl-12 h-12 text-lg"
             />
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -134,44 +130,54 @@ const Index = () => {
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 fade-in" style={{ animationDelay: "0.4s" }}>
-          {restaurants.map((restaurant) => (
-            <Card
-              key={restaurant.id}
-              className="overflow-hidden hover-scale glass-card"
-            >
-              <img
-                src={restaurant.image}
-                alt={restaurant.name}
-                className="w-full h-48 object-cover"
-                loading="lazy"
-              />
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-1">
-                      {restaurant.name}
-                    </h3>
-                    <p className="text-gray-600">{restaurant.cuisine}</p>
+          {loading ? (
+            <div className="col-span-full flex justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : products.length === 0 ? (
+            <div className="col-span-full text-center py-12">
+              <p className="text-gray-500">No products found in this category</p>
+            </div>
+          ) : (
+            products.map((product) => (
+              <Card
+                key={product.id}
+                className="overflow-hidden hover-scale glass-card"
+              >
+                <img
+                  src={product.image_url}
+                  alt={product.name}
+                  className="w-full h-48 object-cover"
+                  loading="lazy"
+                />
+                <div className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="text-xl font-semibold text-gray-900 mb-1">
+                        {product.name}
+                      </h3>
+                      <p className="text-gray-600">{product.category}</p>
+                    </div>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-sage-100 text-sage-800">
+                      ${product.price.toFixed(2)}
+                    </span>
                   </div>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-sage-100 text-sage-800">
-                    ⭐️ {restaurant.rating}
-                  </span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">
+                      {product.description?.substring(0, 50)}...
+                    </span>
+                    <Button
+                      variant="ghost"
+                      className="text-sage-600 hover:text-sage-700"
+                      onClick={() => handleOrderNow(product.id)}
+                    >
+                      Order now <ChevronRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500">
-                    {restaurant.deliveryTime} min
-                  </span>
-                  <Button
-                    variant="ghost"
-                    className="text-sage-600 hover:text-sage-700"
-                    onClick={() => handleOrderNow(restaurant.id)}
-                  >
-                    Order now <ChevronRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            ))
+          )}
         </section>
       </main>
     </div>

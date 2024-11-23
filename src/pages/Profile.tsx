@@ -1,27 +1,100 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
+import { useSessionContext } from '@supabase/auth-helpers-react';
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
 
 const Profile = () => {
   const { toast } = useToast();
+  const { session } = useSessionContext();
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
   const [profile, setProfile] = useState({
-    name: "John Doe",
-    email: "john@example.com",
-    phone: "+1 234 567 890",
-    address: "123 Food Street, Cuisine City",
+    username: "",
+    full_name: "",
+    phone: "",
+    address: "",
   });
 
-  const [isEditing, setIsEditing] = useState(false);
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!session?.user?.id) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
 
-  const handleSubmit = (e: React.FormEvent) => {
+        if (error) throw error;
+        
+        if (data) {
+          setProfile({
+            username: data.username || "",
+            full_name: data.full_name || "",
+            phone: data.phone || "",
+            address: data.address || "",
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load profile",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [session]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsEditing(false);
-    toast({
-      title: "Profile Updated",
-      description: "Your profile has been updated successfully.",
-    });
+    if (!session?.user?.id) return;
+
+    setUpdating(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          username: profile.username,
+          full_name: profile.full_name,
+          phone: profile.phone,
+          address: profile.address,
+        })
+        .eq('id', session.user.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been updated successfully.",
+      });
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update profile",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdating(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sage-50 to-white p-4">
@@ -33,44 +106,36 @@ const Profile = () => {
             <div className="flex items-center gap-4">
               <div className="w-20 h-20 bg-sage-200 rounded-full flex items-center justify-center">
                 <span className="text-2xl font-semibold text-sage-600">
-                  {profile.name.charAt(0)}
+                  {profile.full_name ? profile.full_name[0].toUpperCase() : "?"}
                 </span>
               </div>
               <div>
-                <h2 className="text-xl font-semibold">{profile.name}</h2>
-                <p className="text-gray-600">{profile.email}</p>
+                <h2 className="text-xl font-semibold">{profile.full_name || "Set your name"}</h2>
+                <p className="text-gray-600">{session?.user?.email}</p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => setIsEditing(!isEditing)}
-              className="text-sage-600 hover:text-sage-700"
-            >
-              {isEditing ? "Cancel" : "Edit Profile"}
-            </Button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Name</label>
+              <label className="block text-sm font-medium mb-1">Username</label>
               <Input
-                value={profile.name}
+                value={profile.username}
                 onChange={(e) =>
-                  setProfile({ ...profile, name: e.target.value })
+                  setProfile({ ...profile, username: e.target.value })
                 }
-                disabled={!isEditing}
+                placeholder="Enter your username"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Email</label>
+              <label className="block text-sm font-medium mb-1">Full Name</label>
               <Input
-                type="email"
-                value={profile.email}
+                value={profile.full_name}
                 onChange={(e) =>
-                  setProfile({ ...profile, email: e.target.value })
+                  setProfile({ ...profile, full_name: e.target.value })
                 }
-                disabled={!isEditing}
+                placeholder="Enter your full name"
               />
             </div>
 
@@ -81,7 +146,7 @@ const Profile = () => {
                 onChange={(e) =>
                   setProfile({ ...profile, phone: e.target.value })
                 }
-                disabled={!isEditing}
+                placeholder="Enter your phone number"
               />
             </div>
 
@@ -92,15 +157,24 @@ const Profile = () => {
                 onChange={(e) =>
                   setProfile({ ...profile, address: e.target.value })
                 }
-                disabled={!isEditing}
+                placeholder="Enter your address"
               />
             </div>
 
-            {isEditing && (
-              <Button type="submit" className="w-full bg-sage-600 hover:bg-sage-700">
-                Save Changes
-              </Button>
-            )}
+            <Button 
+              type="submit" 
+              className="w-full bg-sage-600 hover:bg-sage-700"
+              disabled={updating}
+            >
+              {updating ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
           </form>
         </div>
       </div>
